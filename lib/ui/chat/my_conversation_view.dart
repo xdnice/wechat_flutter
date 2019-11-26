@@ -1,10 +1,11 @@
+import 'package:dim_example/ui/message_view/content_msg.dart';
 import 'package:flutter/material.dart';
 import 'package:dim_example/tools/wechat_flutter.dart';
 
 class MyConversationView extends StatefulWidget {
   final String imageUrl;
   final String title;
-  final String content;
+  final Map content;
   final Widget time;
   final bool isBorder;
 
@@ -25,7 +26,7 @@ class _MyConversationViewState extends State<MyConversationView> {
   Widget build(BuildContext context) {
     var row = new Row(
       children: <Widget>[
-        new Container(width: 10.0),
+        new Space(width: mainSpace),
         new Expanded(
           child: new Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,20 +36,17 @@ class _MyConversationViewState extends State<MyConversationView> {
                 style: TextStyle(fontSize: 17.0, fontWeight: FontWeight.normal),
               ),
               new SizedBox(height: 2.0),
-              new Text(
-                widget.content ?? '',
-                style: TextStyle(color: mainTextColor, fontSize: 14.0),
-              ),
+              new ContentMsg(widget.content),
             ],
           ),
         ),
-        new Container(width: 10.0),
+        new Space(width: mainSpace),
         new Column(
           children: [
             widget.time,
             new Icon(Icons.flag, color: Colors.transparent),
           ],
-        ),
+        )
       ],
     );
 
@@ -63,19 +61,18 @@ class _MyConversationViewState extends State<MyConversationView> {
               height: 50.0,
               width: 50.0,
               fit: BoxFit.cover),
-          new Expanded(
-            child: new Container(
-              padding: EdgeInsets.only(right: 18.0, top: 12.0, bottom: 12.0),
-              decoration: BoxDecoration(
-                border: widget.isBorder
-                    ? Border(
-                        top: BorderSide(color: lineColor, width: 0.2),
-                      )
-                    : null,
-              ),
-              child: row,
+          new Container(
+            padding: EdgeInsets.only(right: 18.0, top: 12.0, bottom: 12.0),
+            width: winWidth(context) - 68,
+            decoration: BoxDecoration(
+              border: widget.isBorder
+                  ? Border(
+                      top: BorderSide(color: lineColor, width: 0.2),
+                    )
+                  : null,
             ),
-          ),
+            child: row,
+          )
         ],
       ),
     );

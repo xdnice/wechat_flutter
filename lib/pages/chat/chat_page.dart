@@ -1,16 +1,18 @@
 import 'package:dim_example/im/model/chat_data.dart';
+import 'package:dim_example/pages/chat/chat_more_page.dart';
+import 'package:dim_example/ui/chat/chat_details_body.dart';
+import 'package:dim_example/ui/chat/chat_details_row.dart';
 import 'package:dim_example/ui/item/chat_more_icon.dart';
-import 'package:dim_example/ui/item/chat_voice.dart';
+import 'package:dim_example/ui/view/indicator_page_view.dart';
 import 'package:extended_text_field/extended_text_field.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:dim_example/im/send_handle.dart';
 import 'package:dim_example/tools/wechat_flutter.dart';
-import 'package:dim_example/ui/edit/selection_controls.dart';
 import 'package:dim_example/ui/edit/text_span_builder.dart';
-import 'package:dim_example/ui/massage/wait1.dart';
 
 import 'chat_info_page.dart';
+
+enum ButtonType { voice, more }
 
 class ChatPage extends StatefulWidget {
   final String title;
@@ -25,13 +27,15 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   List<ChatData> chatData = [];
-  StreamSubscription<dynamic> _messageStreamSubscription;
-
+  StreamSubscription<dynamic> _msgStreamSubs;
   bool _isVoice = false;
+  bool _isMore = false;
+  double keyboardHeight = 270.0;
 
   TextEditingController _textController = TextEditingController();
+  FocusNode _focusNode = new FocusNode();
   ScrollController _sC = ScrollController();
-  SelectionControls _selectionControls = SelectionControls();
+  PageController pageC = new PageController();
 
   @override
   void initState() {
@@ -40,6 +44,7 @@ class _ChatPageState extends State<ChatPage> {
 
     _sC.addListener(() => FocusScope.of(context).requestFocus(new FocusNode()));
     initPlatformState();
+    Notice.addListener(WeChatActions.msg(), (v) => getChatMsgData());
   }
 
   Future getChatMsgData() async {
@@ -82,16 +87,14 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void canCelListener() {
-    if (_messageStreamSubscription != null) {
-      _messageStreamSubscription.cancel();
-    }
+    if (_msgStreamSubs != null) _msgStreamSubs.cancel();
   }
 
   Future<void> initPlatformState() async {
     if (!mounted) return;
 
-    if (_messageStreamSubscription == null) {
-      _messageStreamSubscription =
+    if (_msgStreamSubs == null) {
+      _msgStreamSubs =
           im.onMessage.listen((dynamic onData) => getChatMsgData());
     }
   }
@@ -100,6 +103,24 @@ class _ChatPageState extends State<ChatPage> {
     _textController.clear();
     chatData.insert(0, new ChatData(msg: {"text": text}));
     await sendTextMsg('${widget.id}', widget.type, text);
+  }
+
+  onTapHandle(ButtonType type) {
+    setState(() {
+      if (type == ButtonType.voice) {
+        _focusNode.unfocus();
+        _isMore = false;
+        _isVoice = !_isVoice;
+      } else {
+        _isVoice = false;
+        if (_focusNode.hasFocus) {
+          _focusNode.unfocus();
+          _isMore = true;
+        } else {
+          _isMore = !_isMore;
+        }
+      }
+    });
   }
 
   Widget edit(context, size) {
@@ -114,18 +135,14 @@ class _ChatPageState extends State<ChatPage> {
     _tp.layout(maxWidth: size.maxWidth);
 
     return ExtendedTextField(
-//      textInputAction: TextInputAction.none,
       specialTextSpanBuilder: TextSpanBuilder(showAtBackground: true),
-      textSelectionControls: _selectionControls,
-      onTap: () {
-        setState(() {});
-      },
-      onChanged: (v) {
-        setState(() {});
-      },
+      onTap: () => setState(() {}),
+      onChanged: (v) => setState(() {}),
       decoration: InputDecoration(
           border: InputBorder.none, contentPadding: const EdgeInsets.all(5.0)),
       controller: _textController,
+      focusNode: _focusNode,
+      maxLines: 99,
       cursorColor: const Color(AppColors.ChatBoxCursorColor),
       style: AppStyles.ChatBoxTextStyle,
     );
@@ -133,68 +150,40 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-//    var keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    if (keyboardHeight == 270.0 &&
+        MediaQuery.of(context).viewInsets.bottom != 0) {
+      keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    }
     var body = [
       chatData != null
-          ? new Flexible(
-              child: new ListView.builder(
-                controller: _sC,
-                padding: EdgeInsets.all(8.0),
-                reverse: true,
-                itemBuilder: (context, int index) {
-                  ChatData model = chatData[index];
-                  return new SendMessageView(model);
-                },
-                itemCount: chatData.length,
-                dragStartBehavior: DragStartBehavior.down,
-              ),
-            )
+          ? new ChatDetailsBody(sC: _sC, chatData: chatData)
           : new Spacer(),
-      new Container(
-        height: 50.0,
-        padding: EdgeInsets.symmetric(horizontal: 8.0),
-        decoration: BoxDecoration(
-          color: Color(AppColors.ChatBoxBg),
-          border: Border(
-            top: BorderSide(color: lineColor, width: Constants.DividerWidth),
-          ),
+      new ChatDetailsRow(
+        voiceOnTap: () => onTapHandle(ButtonType.voice),
+        isVoice: _isVoice,
+        edit: edit,
+        more: new ChatMoreIcon(
+          value: _textController.text,
+          onTap: () => _handleSubmittedData(_textController.text),
+          moreTap: () => onTapHandle(ButtonType.more),
         ),
-        child: new Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            new InkWell(
-              child: new Image.asset('assets/images/chat/ic_voice.webp',
-                  width: 25, color: mainTextColor),
-              onTap: () {
-                setState(() => _isVoice = !_isVoice);
-              },
-            ),
-            new Expanded(
-              child: new Container(
-                margin: const EdgeInsets.only(
-                  top: 7.0,
-                  bottom: 7.0,
-                  left: 8.0,
-                  right: 8.0,
-                ),
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(5.0)),
-                child: _isVoice
-                    ? new ChatVoice()
-                    : new LayoutBuilder(builder: edit),
-              ),
-            ),
-            new InkWell(
-              child: new Image.asset('assets/images/chat/ic_Emotion.webp',
-                  width: 25, fit: BoxFit.cover),
-              onTap: () {},
-            ),
-            new ChatMoreIcon(
-              value: _textController.text,
-              onTap: () => _handleSubmittedData(_textController.text),
-            ),
-          ],
+        id: widget.id,
+        type: widget.type,
+      ),
+      new Container(
+        height: _isMore && !_focusNode.hasFocus ? keyboardHeight : 0.0,
+        width: winWidth(context),
+        color: Color(AppColors.ChatBoxBg),
+        child: new IndicatorPageView(
+          pageC: pageC,
+          pages: List.generate(2, (index) {
+            return new ChatMorePage(
+              index: index,
+              id: widget.id,
+              type: widget.type,
+              keyboardHeight: keyboardHeight,
+            );
+          }),
         ),
       ),
     ];
@@ -209,6 +198,7 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       appBar: new ComMomBar(title: widget.title, rightDMActions: rWidget),
       body: new MainInputBody(
+        onTap: () => setState(() => _isMore = false),
         decoration: BoxDecoration(color: chatBg),
         child: new Column(children: body),
       ),
